@@ -4,7 +4,7 @@ import { HUD } from './components/HUD';
 
 export default function App() {
   const mountRef = useRef(null);
-  const [hudData, setHudData] = useState({ speedKmh: 0 });
+  const [hudData, setHudData] = useState({});
 
   useEffect(() => {
     if (!mountRef.current) return;
@@ -14,9 +14,9 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden select-none bg-sky-400">
+    <div className="fixed inset-0 w-full h-full overflow-hidden select-none bg-sky-400">
       <div ref={mountRef} className="w-full h-full" />
-      <HUD speedKmh={hudData.speedKmh} />
+      <HUD {...hudData} />
     </div>
   );
 }

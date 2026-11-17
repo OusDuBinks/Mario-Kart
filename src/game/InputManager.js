@@ -7,6 +7,7 @@ export class InputManager {
       right: false,
       drift: false,
       reset: false,
+      useItem: false,
     };
 
     this.handleKeyDown = this.handleKeyDown.bind(this);
@@ -17,6 +18,8 @@ export class InputManager {
   }
 
   handleKeyDown(e) {
+    if (e.repeat) return;
+
     switch (e.code) {
       case 'KeyW':
       case 'ArrowUp':
@@ -35,8 +38,14 @@ export class InputManager {
         this.keys.right = true;
         break;
       case 'Space':
-        e.preventDefault(); // Évite de faire défiler la page
+        e.preventDefault();
         this.keys.drift = true;
+        break;
+      case 'KeyE':
+      case 'ShiftLeft':
+      case 'ShiftRight':
+      case 'Enter':
+        this.keys.useItem = true;
         break;
       case 'KeyR':
         this.keys.reset = true;
@@ -71,6 +80,14 @@ export class InputManager {
   consumeReset() {
     if (this.keys.reset) {
       this.keys.reset = false;
+      return true;
+    }
+    return false;
+  }
+
+  consumeUseItem() {
+    if (this.keys.useItem) {
+      this.keys.useItem = false;
       return true;
     }
     return false;

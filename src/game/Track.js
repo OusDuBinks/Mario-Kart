@@ -14,7 +14,6 @@ export class Track {
   }
 
   buildCurve() {
-    // Points de contrôle du circuit fermé (dans le plan X / Z)
     const points = [
       new THREE.Vector3(0, 0, 0),       // Ligne de départ / arrivée
       new THREE.Vector3(0, 0, 80),      // Fin de la ligne droite principale
@@ -30,7 +29,6 @@ export class Track {
 
     this.curve = new THREE.CatmullRomCurve3(points, true, 'centripetal');
 
-    // Pré-calcul de 360 points le long du circuit pour des calculs physiques ultra-rapides
     const sampleCount = 360;
     for (let i = 0; i < sampleCount; i++) {
       const u = i / sampleCount;
@@ -43,7 +41,6 @@ export class Track {
   }
 
   buildEnvironment() {
-    // Plaine d'herbe
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(800, 800),
       new THREE.MeshStandardMaterial({ color: 0x3b7a57, roughness: 0.9 })
@@ -53,7 +50,6 @@ export class Track {
     this.scene.add(ground);
   }
 
-  // Génère un ruban 3D plat suivant la courbe entre deux décalages latéraux
   createRibbonMesh(innerOffset, outerOffset, yHeight, colorA, colorB, stripes = 160) {
     const positions = [];
     const colors = [];
@@ -106,10 +102,7 @@ export class Track {
     const hw = KART_CONFIG.TRACK_HALF_WIDTH;
     const curbWidth = 1.1;
 
-    // Asphalte central
     this.createRibbonMesh(-hw, hw, 0.02, 0x2f3136, 0x34373c, 240);
-
-    // Vibreurs gauche et droit (rouge et blanc)
     this.createRibbonMesh(-hw - curbWidth, -hw, 0.03, 0xe62e2e, 0xffffff, 180);
     this.createRibbonMesh(hw, hw + curbWidth, 0.03, 0xe62e2e, 0xffffff, 180);
   }
@@ -119,7 +112,6 @@ export class Track {
     const startTan = this.curve.getTangentAt(0).normalize();
     const angle = Math.atan2(startTan.x, startTan.z);
 
-    // Texture damier générée par code (0 poids fichier)
     const canvas = document.createElement('canvas');
     canvas.width = 128;
     canvas.height = 32;
@@ -143,7 +135,6 @@ export class Track {
     lineMesh.position.set(startPt.x, 0.04, startPt.z);
     this.scene.add(lineMesh);
 
-    // Arche de départ
     const archGroup = new THREE.Group();
     archGroup.position.copy(startPt);
     archGroup.rotation.y = angle;
@@ -208,7 +199,6 @@ export class Track {
     };
   }
 
-  // Calcule la distance au centre de la piste, l'avancement (u) et le point le plus proche
   getSurfaceInfo(position) {
     let closest = this.samples[0];
     let minDistSq = Infinity;

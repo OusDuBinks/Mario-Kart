@@ -7,9 +7,9 @@ export const KART_CONFIG = {
   TURN_SPEED: 2.2,
 
   // Paramètres du circuit et des surfaces
-  TRACK_HALF_WIDTH: 8.5,     // Largeur de l'asphalte (8.5m de chaque côté du centre)
-  WALL_HALF_WIDTH: 14.0,     // Distance des glissières (laisse 5.5m d'herbe pour couper)
-  OFFROAD_SPEED_MULT: 0.52,  // Vitesse max dans l'herbe (52% sans boost)
+  TRACK_HALF_WIDTH: 8.5,
+  WALL_HALF_WIDTH: 14.0,
+  OFFROAD_SPEED_MULT: 0.52,
   TOTAL_LAPS: 3,
 
   // Paramètres de dérapage authentique (Mario Kart)
@@ -23,4 +23,13 @@ export const KART_CONFIG = {
   BOOST_L1_DURATION: 0.9,
   BOOST_L2_DURATION: 1.6,
   BOOST_SPEED_MULT: 1.38,
+
+  // Paramètres Arcade (Objets & Dalles)
+  BOOST_PAD_DURATION: 1.1,
+  TRIPLE_BOOST_DURATION: 2.7,
+  STAR_DURATION: 4.2,
+  ITEM_BOX_PICKUP_RADIUS: 3.5, // Hitbox large (7m de diamètre)
+  ITEM_RESPAWN_TIME: 4.0,
+  SPINOUT_DURATION: 1.1,
+  PROJECTILE_SPEED: 68,
 };

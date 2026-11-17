@@ -12,7 +12,6 @@ export class Kart {
     this.heading = 0;
     this.isOffRoad = false;
 
-    // États de l'animation d'amorce, du dérapage et du boost
     this.hopHeight = 0;
     this.hopVelocity = 0;
     this.wasDriftPressed = false;
@@ -23,6 +22,8 @@ export class Kart {
     this.driftTime = 0;
     this.driftLevel = 0;
     this.boostTimer = 0;
+    this.starTimer = 0;
+    this.spinOutTimer = 0;
 
     this.buildMesh();
     this.reset();
@@ -30,16 +31,15 @@ export class Kart {
   }
 
   buildMesh() {
-    // Châssis
+    this.chassisMat = new THREE.MeshStandardMaterial({ color: 0xe62e2e });
     this.chassis = new THREE.Mesh(
       new THREE.BoxGeometry(1.6, 0.5, 2.6),
-      new THREE.MeshStandardMaterial({ color: 0xe62e2e })
+      this.chassisMat
     );
     this.chassis.position.y = 0.55;
     this.chassis.castShadow = true;
     this.visualGroup.add(this.chassis);
 
-    // Pilote
     const driver = new THREE.Mesh(
       new THREE.BoxGeometry(0.7, 0.7, 0.7),
       new THREE.MeshStandardMaterial({ color: 0xffcc00 })
@@ -48,7 +48,6 @@ export class Kart {
     driver.castShadow = true;
     this.visualGroup.add(driver);
 
-    // Roues
     const wheelGeo = new THREE.CylinderGeometry(0.4, 0.4, 0.35, 16);
     wheelGeo.rotateZ(Math.PI / 2);
     const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a });
@@ -68,7 +67,6 @@ export class Kart {
       return wheel;
     });
 
-    // Étincelles de dérapage / flammes de boost
     const sparkGeo = new THREE.SphereGeometry(0.32, 8, 8);
     this.sparkMat = new THREE.MeshBasicMaterial({
       color: 0x00d2ff,
@@ -99,6 +97,31 @@ export class Kart {
     this.driftTime = 0;
     this.driftLevel = 0;
     this.boostTimer = 0;
+    this.starTimer = 0;
+    this.spinOutTimer = 0;
+    this.chassisMat.color.setHex(0xe62e2e);
+    this.visualGroup.rotation.set(0, 0, 0);
+  }
+
+  triggerBoost(duration) {
+    if (this.spinOutTimer > 0) return;
+    this.boostTimer = Math.max(this.boostTimer, duration);
+  }
+
+  triggerStar(duration) {
+    this.spinOutTimer = 0;
+    this.visualGroup.rotation.y = 0;
+    this.starTimer = Math.max(this.starTimer, duration);
+  }
+
+  triggerSpinOut() {
+    if (this.spinOutTimer > 0 || this.starTimer > 0) return;
+    this.spinOutTimer = KART_CONFIG.SPINOUT_DURATION;
+    this.boostTimer = 0;
+    this.isDrifting = false;
+    this.driftLevel = 0;
+    this.driftTime = 0;
+    this.speed *= 0.35;
   }
 
   update(delta, keys) {
@@ -123,6 +146,23 @@ export class Kart {
       BOOST_SPEED_MULT,
     } = KART_CONFIG;
 
+    // 0. GESTION DU TÊTE-À-QUEUE
+    if (this.spinOutTimer > 0) {
+      this.spinOutTimer = Math.max(0, this.spinOutTimer - delta);
+      this.speed = THREE.MathUtils.lerp(this.speed, 0, 3.5 * delta);
+      this.mesh.position.x += Math.sin(this.heading) * this.speed * delta;
+      this.mesh.position.z += Math.cos(this.heading) * this.speed * delta;
+      this.visualGroup.rotation.y += 14 * delta;
+      this.updateSparks(false, false);
+
+      const surfaceAfter = this.track.getSurfaceInfo(this.mesh.position);
+      if (surfaceAfter.isOutOfBounds) {
+        const pushDir = surfaceAfter.closestPoint.clone().sub(this.mesh.position).normalize();
+        this.mesh.position.addScaledVector(pushDir, surfaceAfter.distance - WALL_HALF_WIDTH);
+      }
+      return surfaceAfter;
+    }
+
     let steerInput = 0;
     if (keys.left) steerInput += 1;
     if (keys.right) steerInput -= 1;
@@ -137,7 +177,7 @@ export class Kart {
       this.driftBufferTimer = Math.max(0, this.driftBufferTimer - delta);
     }
 
-    // 2. DÉCLENCHEMENT SIMULTANÉ DU DRIFT ET DE SON ANIMATION DE REBOND
+    // 2. DÉCLENCHEMENT SIMULTANÉ DU DRIFT ET DU MICRO-REBOND
     if (keys.drift && this.speed >= MIN_DRIFT_SPEED) {
       if (!this.isDrifting && this.driftBufferTimer > 0 && steerInput !== 0) {
         this.isDrifting = true;
@@ -155,9 +195,9 @@ export class Kart {
       this.driftBufferTimer = 0;
       if (this.isDrifting) {
         if (this.driftLevel === 1) {
-          this.boostTimer = BOOST_L1_DURATION;
+          this.triggerBoost(BOOST_L1_DURATION);
         } else if (this.driftLevel === 2) {
-          this.boostTimer = BOOST_L2_DURATION;
+          this.triggerBoost(BOOST_L2_DURATION);
         }
         this.isDrifting = false;
         this.driftDirection = 0;
@@ -167,7 +207,6 @@ export class Kart {
       }
     }
 
-    // Micro-rebond visuel
     if (this.hopHeight > 0 || this.hopVelocity > 0) {
       this.hopHeight += this.hopVelocity * delta;
       this.hopVelocity -= 42 * delta;
@@ -178,7 +217,6 @@ export class Kart {
     }
     this.visualGroup.position.y = this.hopHeight;
 
-    // Charge des étincelles
     if (this.isDrifting) {
       this.driftEase = Math.min(1, this.driftEase + delta * 5.5);
       const chargeRate = steerInput === this.driftDirection ? 1.25 : 1.0;
@@ -191,20 +229,28 @@ export class Kart {
       }
     }
 
-    // 3. SURFACE (ASPHALTE VS HERBE), VITESSE ET BOOST
+    // 3. SURFACE, VITESSE, BOOST ET ÉTOILE
     const surfaceBefore = this.track.getSurfaceInfo(this.mesh.position);
     this.isOffRoad = surfaceBefore.isOffRoad;
 
     if (this.boostTimer > 0) {
       this.boostTimer = Math.max(0, this.boostTimer - delta);
     }
+    if (this.starTimer > 0) {
+      this.starTimer = Math.max(0, this.starTimer - delta);
+      this.chassisMat.color.setHSL((performance.now() * 0.0025) % 1, 0.9, 0.52);
+    } else {
+      this.chassisMat.color.setHex(0xe62e2e);
+    }
 
     const isBoosting = this.boostTimer > 0;
+    const isStar = this.starTimer > 0;
     let currentMaxSpeed = MAX_SPEED;
 
     if (isBoosting) {
-      // Le boost annule la pénalité de l'herbe !
       currentMaxSpeed = MAX_SPEED * BOOST_SPEED_MULT;
+    } else if (isStar) {
+      currentMaxSpeed = MAX_SPEED * 1.32;
     } else if (this.isOffRoad) {
       currentMaxSpeed = MAX_SPEED * OFFROAD_SPEED_MULT;
     }
@@ -213,10 +259,9 @@ export class Kart {
       this.speed = THREE.MathUtils.lerp(this.speed, currentMaxSpeed, 6 * delta);
     } else if (keys.forward) {
       if (this.speed > currentMaxSpeed) {
-        // Freinage naturel quand on entre dans l'herbe ou qu'un boost s'arrête
         this.speed = THREE.MathUtils.lerp(this.speed, currentMaxSpeed, 5 * delta);
       } else {
-        this.speed += ACCELERATION * delta;
+        this.speed += (isStar ? ACCELERATION * 1.4 : ACCELERATION) * delta;
       }
     } else if (keys.backward) {
       this.speed -= (this.speed > 0 ? BRAKING : ACCELERATION * 0.7) * delta;
@@ -260,7 +305,7 @@ export class Kart {
       const pushDir = surfaceAfter.closestPoint.clone().sub(this.mesh.position).normalize();
       const overlap = surfaceAfter.distance - WALL_HALF_WIDTH;
       this.mesh.position.addScaledVector(pushDir, overlap);
-      this.speed *= 0.94; // Légère perte de vitesse au frottement du mur
+      this.speed *= 0.94;
     }
 
     // 6. ANIMATIONS VISUELLES
@@ -281,14 +326,14 @@ export class Kart {
     this.wheels[0].rotation.y = steerInput * 0.35;
     this.wheels[1].rotation.y = steerInput * 0.35;
 
-    this.updateSparks(isBoosting);
+    this.updateSparks(isBoosting, isStar);
 
     return surfaceAfter;
   }
 
-  updateSparks(isBoosting) {
-    if (isBoosting) {
-      this.sparkMat.color.setHex(0xffdd00);
+  updateSparks(isBoosting, isStar) {
+    if (isBoosting || isStar) {
+      this.sparkMat.color.setHex(isStar ? 0x38bdf8 : 0xffdd00);
       this.sparkMat.opacity = 0.95;
       const pulse = 1.2 + Math.sin(performance.now() * 0.04) * 0.4;
       this.sparks.forEach((s) => s.scale.setScalar(pulse));

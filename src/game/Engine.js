@@ -3,6 +3,7 @@ import { KART_CONFIG } from './config';
 import { InputManager } from './InputManager';
 import { Track } from './Track';
 import { Kart } from './Kart';
+import { ItemManager } from './ItemManager';
 
 export class Engine {
   constructor(container, onHudUpdate) {
@@ -16,7 +17,8 @@ export class Engine {
 
     this.input = new InputManager();
     this.track = new Track(this.scene);
-    this.kart = new Kart(this.scene, this.track); // <-- Passage de this.track indispensable
+    this.kart = new Kart(this.scene, this.track);
+    this.items = new ItemManager(this.scene, this.track, this.kart);
 
     this.resetRaceState();
     this.lastHudSync = 0;
@@ -30,9 +32,16 @@ export class Engine {
 
   resetRaceState() {
     this.kart.reset();
+    if (this.items) {
+      this.items.reset();
+    }
     this.lap = 1;
     this.checkpoints = { cp1: false, cp2: false, cp3: false };
     this.raceTime = 0;
+    this.currentLapTime = 0;
+    this.bestLapTime = null;
+    this.lapBanner = null;
+    this.lapBannerTimer = 0;
     this.isFinished = false;
 
     const start = this.track.getStartTransform();
@@ -83,20 +92,34 @@ export class Engine {
   updateLapProgress(u) {
     if (this.isFinished) return;
 
-    if (u > 0.22 && u < 0.35) {
+    // Validation séquentielle des 3 secteurs du circuit
+    if (u >= 0.18 && u <= 0.40) {
       this.checkpoints.cp1 = true;
-    } else if (this.checkpoints.cp1 && u > 0.48 && u < 0.62) {
+    } else if (this.checkpoints.cp1 && u >= 0.42 && u <= 0.68) {
       this.checkpoints.cp2 = true;
-    } else if (this.checkpoints.cp2 && u > 0.72 && u < 0.88) {
+    } else if (this.checkpoints.cp2 && u >= 0.70 && u <= 0.92) {
       this.checkpoints.cp3 = true;
     }
 
-    if (this.checkpoints.cp1 && this.checkpoints.cp2 && this.checkpoints.cp3 && u < 0.12) {
+    // Franchissement de la ligne d'arrivée
+    if (this.checkpoints.cp1 && this.checkpoints.cp2 && this.checkpoints.cp3 && u < 0.14) {
       this.checkpoints = { cp1: false, cp2: false, cp3: false };
+
+      if (this.bestLapTime === null || this.currentLapTime < this.bestLapTime) {
+        this.bestLapTime = this.currentLapTime;
+      }
+      this.currentLapTime = 0;
+
       if (this.lap >= KART_CONFIG.TOTAL_LAPS) {
         this.isFinished = true;
+        this.lapBanner = null;
       } else {
         this.lap += 1;
+        this.lapBanner =
+          this.lap === KART_CONFIG.TOTAL_LAPS
+            ? 'DERNIER TOUR !'
+            : `TOUR ${this.lap} / ${KART_CONFIG.TOTAL_LAPS}`;
+        this.lapBannerTimer = 2.4;
       }
     }
   }
@@ -143,9 +166,18 @@ export class Engine {
 
     if (!this.isFinished) {
       this.raceTime += delta;
+      this.currentLapTime += delta;
+    }
+
+    if (this.lapBannerTimer > 0) {
+      this.lapBannerTimer -= delta;
+      if (this.lapBannerTimer <= 0) {
+        this.lapBanner = null;
+      }
     }
 
     const surfaceInfo = this.kart.update(delta, this.input.keys);
+    this.items.update(delta, this.kart, this.input.consumeUseItem());
     this.updateLapProgress(surfaceInfo.u);
     this.updateCamera(delta);
 
@@ -155,10 +187,15 @@ export class Engine {
         speedKmh: this.kart.getSpeedKmh(),
         driftLevel: this.kart.driftLevel,
         isBoosting: this.kart.boostTimer > 0,
+        isStarActive: this.kart.starTimer > 0,
         isOffRoad: this.kart.isOffRoad,
+        itemSlots: this.items.getHudSlots(),
         lap: this.lap,
         totalLaps: KART_CONFIG.TOTAL_LAPS,
         raceTime: this.raceTime,
+        currentLapTime: this.currentLapTime,
+        bestLapTime: this.bestLapTime,
+        lapBanner: this.lapBanner,
         isFinished: this.isFinished,
       });
     }
