@@ -1,0 +1,9 @@
+export const KART_CONFIG = {
+  MAX_SPEED: 36,
+  MAX_REVERSE: -14,
+  ACCELERATION: 26,
+  BRAKING: 40,
+  FRICTION: 14,
+  TURN_SPEED: 2.4,
+  START_POS: { x: 45, y: 0, z: 0 },
+};
