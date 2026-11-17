@@ -5,6 +5,7 @@ export class InputManager {
       backward: false,
       left: false,
       right: false,
+      drift: false,
       reset: false,
     };
 
@@ -33,6 +34,10 @@ export class InputManager {
       case 'ArrowRight':
         this.keys.right = true;
         break;
+      case 'Space':
+        e.preventDefault(); // Évite de faire défiler la page
+        this.keys.drift = true;
+        break;
       case 'KeyR':
         this.keys.reset = true;
         break;
@@ -56,6 +61,9 @@ export class InputManager {
       case 'KeyD':
       case 'ArrowRight':
         this.keys.right = false;
+        break;
+      case 'Space':
+        this.keys.drift = false;
         break;
     }
   }
