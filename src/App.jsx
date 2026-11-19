@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
-import { Engine } from './game/Engine';
-import { HUD } from './components/HUD';
+import { Engine } from './game/core/Engine';
+import { HUD } from './components/hud/HUD';
 
 export default function App() {
   const mountRef = useRef(null);
@@ -9,7 +9,6 @@ export default function App() {
   useEffect(() => {
     if (!mountRef.current) return;
     const engine = new Engine(mountRef.current, setHudData);
-
     return () => engine.dispose();
   }, []);
 
